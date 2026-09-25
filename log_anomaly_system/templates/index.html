@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Log Anomaly Detection System</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#0b0f19',
+                        cardbg: '#111827',
+                        borderbg: '#1f2937'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbar for log table */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0b0f19; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+    </style>
+</head>
+<body class="bg-darkbg text-slate-100 font-sans min-h-screen p-4 sm:p-6">
+
+    <div class="max-w-7xl mx-auto space-y-6">
+
+        <!-- Top Navigation / Header -->
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-cardbg p-6 rounded-2xl border border-borderbg shadow-2xl">
+            <div>
+                <div class="flex items-center gap-3">
+                    <span class="p-2 bg-indigo-600/20 text-indigo-400 rounded-xl border border-indigo-500/30">
+                        <i class="fa-solid fa-shield-halved text-xl"></i>
+                    </span>
+                    <h1 class="text-2xl font-bold text-white tracking-tight">AI Windows Log Anomaly Detection</h1>
+                </div>
+                <p class="text-slate-400 text-sm mt-1">Real-time Windows Event Viewer stream analysis & Isolation Forest Machine Learning pipeline</p>
+            </div>
+            
+            <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                <span id="alertStatusBadge" class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                    {% if alert_cfg and alert_cfg.email %}
+                        Subscribed: {{ alert_cfg.email }}
+                    {% else %}
+                        Live Stream Active
+                    {% endif %}
+                </span>
+
+                <!-- Test Alert Button -->
+                <button onclick="triggerTestAlert()" class="bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 text-xs px-3.5 py-2 rounded-xl font-medium border border-amber-500/30 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-bell text-xs"></i>
+                    <span>Test Alert</span>
+                </button>
+
+                <!-- Fetch Fresh Logs -->
+                <button id="collectBtn" onclick="triggerCollect()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3.5 py-2 rounded-xl font-medium transition flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/20">
+                    <i id="collectIcon" class="fa-solid fa-arrows-rotate"></i>
+                    <span>Fetch Fresh Logs</span>
+                </button>
+
+                <!-- Purge / Reset -->
+                <button onclick="triggerReset()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-3.5 py-2 rounded-xl font-medium transition flex items-center gap-1.5 border border-slate-700">
+                    <i class="fa-solid fa-trash-can text-slate-400"></i>
+                    <span>Purge & Reset</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Alert Subscription Strip -->
+        <div class="bg-cardbg p-4 rounded-xl border border-borderbg flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <i class="fa-solid fa-envelope-open-text text-indigo-400 text-lg"></i>
+                <div>
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-slate-200">Automated Multi-Channel Alert Engine</h4>
+                    <p class="text-xs text-slate-400">Enter your email address to automatically receive desktop toast notifications and security alert emails when anomalies are detected.</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 w-full sm:w-auto">
+                <input type="email" id="subscriberEmailInput" value="{{ alert_cfg.email if alert_cfg else '' }}" placeholder="Enter user email (e.g. user@gmail.com)" class="bg-slate-900 border border-slate-700 text-xs text-slate-100 rounded-xl px-3 py-2 w-full sm:w-64 focus:outline-none focus:border-indigo-500">
+                <button onclick="subscribeEmail()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-4 py-2 rounded-xl font-semibold transition whitespace-nowrap">
+                    Subscribe Email
+                </button>
+            </div>
+        </div>
+
+        {% if anomaly_rate >= 10.0 %}
+        <!-- High Anomaly Alert Banner -->
+        <div class="bg-rose-950/40 border border-rose-500/50 p-4 rounded-xl flex items-center justify-between text-rose-200 shadow-lg animate-pulse">
+            <div class="flex items-center gap-3">
+                <i class="fa-solid fa-triangle-exclamation text-rose-400 text-xl"></i>
+                <div>
+                    <h4 class="font-bold text-sm">HIGH ANOMALY RATE DETECTED</h4>
+                    <p class="text-xs text-rose-300">Anomaly rate has reached <span class="font-bold text-white">{{ anomaly_rate }}%</span>. Review recent red-flagged system log entries immediately.</p>
+                </div>
+            </div>
+            <span class="text-xs bg-rose-500/20 text-rose-300 border border-rose-500/30 px-3 py-1 rounded-lg uppercase font-semibold">Critical Alert</span>
+        </div>
+        {% endif %}
+
+        <!-- Metric KPI Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Total Logs -->
+            <div class="bg-cardbg p-5 rounded-2xl border border-borderbg shadow-lg hover:border-slate-700 transition">
+                <div class="flex justify-between items-center text-slate-400">
+                    <span class="text-xs font-semibold uppercase tracking-wider">Total Scanned Logs</span>
+                    <i class="fa-solid fa-server text-indigo-400"></i>
+                </div>
+                <h2 class="text-3xl font-extrabold text-white mt-3">{{ total_logs }}</h2>
+                <p class="text-xs text-slate-500 mt-1">Windows Event Window</p>
+            </div>
+
+            <!-- Normal Events -->
+            <div class="bg-cardbg p-5 rounded-2xl border border-borderbg shadow-lg hover:border-slate-700 transition">
+                <div class="flex justify-between items-center text-emerald-400">
+                    <span class="text-xs font-semibold uppercase tracking-wider">Normal Events</span>
+                    <i class="fa-solid fa-circle-check text-emerald-400"></i>
+                </div>
+                <h2 class="text-3xl font-extrabold text-emerald-400 mt-3">{{ normal }}</h2>
+                <p class="text-xs text-slate-500 mt-1">Expected System Baseline</p>
+            </div>
+
+            <!-- Anomalies -->
+            <div class="bg-cardbg p-5 rounded-2xl border border-rose-500/30 shadow-lg hover:border-rose-500/50 transition">
+                <div class="flex justify-between items-center text-rose-400">
+                    <span class="text-xs font-semibold uppercase tracking-wider">Anomalies Flagged</span>
+                    <i class="fa-solid fa-bug text-rose-400"></i>
+                </div>
+                <h2 class="text-3xl font-extrabold text-rose-400 mt-3">{{ anomalies }}</h2>
+                <p class="text-xs text-slate-500 mt-1">Isolated Outlier Logs</p>
+            </div>
+
+            <!-- Anomaly Rate -->
+            <div class="bg-cardbg p-5 rounded-2xl border border-borderbg shadow-lg hover:border-slate-700 transition">
+                <div class="flex justify-between items-center text-amber-400">
+                    <span class="text-xs font-semibold uppercase tracking-wider">Anomaly Rate</span>
+                    <i class="fa-solid fa-chart-line text-amber-400"></i>
+                </div>
+                <h2 class="text-3xl font-extrabold text-amber-400 mt-3">{{ anomaly_rate }}%</h2>
+                <p class="text-xs text-slate-500 mt-1">Percentage Outliers</p>
+            </div>
+        </div>
+
+        <!-- Interactive Charts Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            <!-- Chart 1: Hourly Distribution -->
+            <div class="bg-cardbg p-5 rounded-2xl border border-borderbg shadow-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-md font-semibold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-clock text-indigo-400 text-sm"></i>
+                        Hourly Event Volume
+                    </h3>
+                    <span class="text-xs text-slate-500">24-Hour Window</span>
+                </div>
+                <div class="h-64">
+                    <canvas id="hourlyChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 2: Top Event IDs -->
+            <div class="bg-cardbg p-5 rounded-2xl border border-borderbg shadow-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-md font-semibold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-hashtags text-sky-400 text-sm"></i>
+                        Top 10 Event IDs
+                    </h3>
+                    <span class="text-xs text-slate-500">Frequency Ranking</span>
+                </div>
+                <div class="h-64">
+                    <canvas id="eventChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 3: Log Types Breakdown -->
+            <div class="bg-cardbg p-5 rounded-2xl border border-borderbg shadow-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-md font-semibold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-folder-tree text-emerald-400 text-sm"></i>
+                        Log Types Distribution
+                    </h3>
+                    <span class="text-xs text-slate-500">Channel Split</span>
+                </div>
+                <div class="h-64 flex justify-center">
+                    <canvas id="logTypeChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 4: Top Log Sources -->
+            <div class="bg-cardbg p-5 rounded-2xl border border-borderbg shadow-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-md font-semibold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-microchip text-purple-400 text-sm"></i>
+                        Top Event Sources
+                    </h3>
+                    <span class="text-xs text-slate-500">System Producers</span>
+                </div>
+                <div class="h-64">
+                    <canvas id="sourceChart"></canvas>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Recent Logs Stream Table -->
+        <div class="bg-cardbg rounded-2xl border border-borderbg shadow-2xl overflow-hidden">
+            <div class="p-5 border-b border-borderbg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h3 class="text-md font-semibold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-list-check text-indigo-400"></i>
+                        Live Event Log Stream
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Showing latest {{ logs|length }} entries from MongoDB</p>
+                </div>
+
+                <!-- Live Filter Search Box -->
+                <div class="relative w-full sm:w-64">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-500 text-xs"></i>
+                    <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="Search source, event ID..." class="w-full bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded-xl pl-8 pr-3 py-2 focus:outline-none focus:border-indigo-500 transition">
+                </div>
+            </div>
+
+            <div class="overflow-x-auto max-h-[28rem]">
+                <table id="logTable" class="w-full text-left text-sm text-slate-300">
+                    <thead class="bg-slate-900/90 text-xs uppercase text-slate-400 sticky top-0 backdrop-blur-md z-10 border-b border-borderbg">
+                        <tr>
+                            <th class="py-3 px-4">Timestamp</th>
+                            <th class="py-3 px-4">Channel</th>
+                            <th class="py-3 px-4">Event ID</th>
+                            <th class="py-3 px-4">Source</th>
+                            <th class="py-3 px-4">Category</th>
+                            <th class="py-3 px-4">Score</th>
+                            <th class="py-3 px-4 text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-borderbg">
+                        {% for log in logs %}
+                        <tr class="hover:bg-slate-800/60 transition {% if log.prediction == -1 %}bg-rose-950/30 text-rose-100{% endif %}">
+                            <td class="py-3 px-4 font-mono text-xs text-slate-400 whitespace-nowrap">{{ log.timestamp }}</td>
+                            <td class="py-3 px-4 font-medium whitespace-nowrap">{{ log.log_type }}</td>
+                            <td class="py-3 px-4 font-mono text-indigo-300 font-bold whitespace-nowrap">{{ log.event_id }}</td>
+                            <td class="py-3 px-4 text-slate-300 max-w-xs truncate">{{ log.source }}</td>
+                            <td class="py-3 px-4 text-slate-400 whitespace-nowrap">{{ log.category }}</td>
+                            <td class="py-3 px-4 font-mono text-xs text-slate-400 whitespace-nowrap">{{ log.anomaly_score }}</td>
+                            <td class="py-3 px-4 text-center whitespace-nowrap">
+                                {% if log.prediction == -1 %}
+                                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-pulse">
+                                        <i class="fa-solid fa-triangle-exclamation text-xs"></i> Anomaly
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                        <i class="fa-solid fa-check text-xs"></i> Normal
+                                    </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="py-8 text-center text-slate-500 text-sm">
+                                <i class="fa-solid fa-inbox text-2xl mb-2 block"></i>
+                                No logs found in database. Click "Fetch Fresh Logs" to begin stream.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Chart.js Setup & Interactive JS Scripts -->
+    <script>
+        // Request Web Browser Notification Permission on page load
+        if ("Notification" in window) {
+            if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+                Notification.requestPermission();
+            }
+        }
+
+        function triggerBrowserToast(title, body) {
+            if ("Notification" in window && Notification.permission === "granted") {
+                new Notification(title, { body: body, icon: "https://cdn-icons-png.flaticon.com/512/1033/1033018.png" });
+            }
+        }
+
+        const chartTheme = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { color: '#94a3b8', font: { family: 'sans-serif', size: 11 } } }
+            },
+            scales: {
+                x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1f2937' } },
+                y: { ticks: { color: '#64748b', font: { size: 10 }, precision: 0 }, grid: { color: '#1f2937' } }
+            }
+        };
+
+        // 1. Hourly Trend Line Chart
+        new Chart(document.getElementById('hourlyChart'), {
+            type: 'line',
+            data: {
+                labels: {{ hour_labels|tojson }},
+                datasets: [{
+                    label: 'Logs Recorded',
+                    data: {{ hour_values|tojson }},
+                    borderColor: '#6366f1',
+                    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.35,
+                    pointRadius: 3,
+                    pointHoverRadius: 6
+                }]
+            },
+            options: chartTheme
+        });
+
+        // 2. Top Event IDs Bar Chart
+        new Chart(document.getElementById('eventChart'), {
+            type: 'bar',
+            data: {
+                labels: {{ event_labels|tojson }},
+                datasets: [{
+                    label: 'Occurrences',
+                    data: {{ event_values|tojson }},
+                    backgroundColor: '#38bdf8',
+                    borderRadius: 6
+                }]
+            },
+            options: chartTheme
+        });
+
+        // 3. Log Types Doughnut Chart
+        new Chart(document.getElementById('logTypeChart'), {
+            type: 'doughnut',
+            data: {
+                labels: {{ logtype_labels|tojson }},
+                datasets: [{
+                    data: {{ logtype_values|tojson }},
+                    backgroundColor: ['#6366f1', '#10b981', '#f43f5e', '#f59e0b'],
+                    borderWidth: 2,
+                    borderColor: '#111827'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 11 } } } }
+            }
+        });
+
+        // 4. Top Log Sources Bar Chart
+        new Chart(document.getElementById('sourceChart'), {
+            type: 'bar',
+            data: {
+                labels: {{ source_labels|tojson }},
+                datasets: [{
+                    label: 'Event Count',
+                    data: {{ source_values|tojson }},
+                    backgroundColor: '#a855f7',
+                    borderRadius: 6
+                }]
+            },
+            options: chartTheme
+        });
+
+        // Subscribe Email API call
+        async function subscribeEmail() {
+            const emailInput = document.getElementById('subscriberEmailInput').value.trim();
+            if (!emailInput) {
+                alert("Please enter a valid email address.");
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/subscribe_email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: emailInput })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    triggerBrowserToast("Alert Subscription Activated 🔔", "Email registered: " + emailInput);
+                    alert("✅ " + data.message + "\n\nDesktop toast fired! Check your screen and email inbox.");
+                    window.location.reload();
+                } else {
+                    alert("Error: " + data.message);
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Failed to connect to alert server.");
+            }
+        }
+
+        // Test Alert API call
+        async function triggerTestAlert() {
+            try {
+                const res = await fetch('/api/test_alert', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    triggerBrowserToast("🚨 TEST ANOMALY ALERT", "Event ID 4625 (Security Log) - Score: -0.2145");
+                    alert("🚨 Test Alert Sent!\n\n1. Check bottom-right of your screen for Desktop Toast\n2. Check browser notification popup\n3. Check subscribed email inbox");
+                } else {
+                    alert("Failed to send test alert.");
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Failed to trigger alert API.");
+            }
+        }
+
+        // Manual Log Fetching AJAX Function
+        async function triggerCollect() {
+            const btn = document.getElementById('collectBtn');
+            const icon = document.getElementById('collectIcon');
+            
+            btn.disabled = true;
+            icon.classList.add('fa-spin');
+
+            try {
+                const res = await fetch('/api/trigger_collect', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    window.location.reload();
+                } else {
+                    alert('Error collecting logs.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Failed to connect to backend service.');
+            } finally {
+                btn.disabled = false;
+                icon.classList.remove('fa-spin');
+            }
+        }
+
+        // Purge & Reset Database
+        async function triggerReset() {
+            if (!confirm("Are you sure you want to clear historical logs and reload fresh logs?")) return;
+            try {
+                const res = await fetch('/api/reset_logs', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    window.location.reload();
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Error resetting logs.');
+            }
+        }
+
+        // Search Filter for Log Table
+        function filterTable() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const rows = document.querySelectorAll('#logTable tbody tr');
+
+            rows.forEach(row => {
+                const text = row.innerText.toLowerCase();
+                row.style.display = text.includes(query) ? '' : 'none';
+            });
+        }
+    </script>
+</body>
+</html>
